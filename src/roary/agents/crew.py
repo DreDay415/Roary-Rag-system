@@ -77,12 +77,18 @@ class RunResult:
 
     repo_name: str
     markdown: str
-    """Full Markdown content (header + critic output)."""
+    """Full Markdown content (header + all four agent outputs)."""
 
     saved_path: Path
     execution_time_seconds: float
     generated_at: str
     """ISO 8601 UTC timestamp."""
+
+    # Per-agent raw outputs (empty string if task did not run)
+    engineer_output: str = ""
+    marketer_output: str = ""
+    ghostwriter_output: str = ""
+    critic_output: str = ""
 
     token_usage: TokenUsage = field(default_factory=TokenUsage)
 
@@ -179,6 +185,28 @@ def run_report(
     final_text: str = result.raw if hasattr(result, "raw") else str(result)
     token_usage = TokenUsage.from_crew_output(result)
 
+    # Extract per-agent outputs (tasks_output is ordered: engineer, marketer, ghostwriter, critic)
+    tasks_output = getattr(result, "tasks_output", [])
+
+    def _task_raw(index: int) -> str:
+        if index < len(tasks_output):
+            task = tasks_output[index]
+            return getattr(task, "raw", "") or ""
+        return ""
+
+    engineer_output = _task_raw(0)
+    marketer_output = _task_raw(1)
+    ghostwriter_output = _task_raw(2)
+    critic_output = _task_raw(3)
+
+    logger.info(
+        "tasks_output counts — engineer:%d marketer:%d ghostwriter:%d critic:%d",
+        len(engineer_output),
+        len(marketer_output),
+        len(ghostwriter_output),
+        len(critic_output),
+    )
+
     now = datetime.now(timezone.utc)
     generated_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     timestamp = now.strftime("%Y%m%dT%H%M%SZ")
@@ -197,7 +225,13 @@ def run_report(
         f"completion: {token_usage.completion_tokens:,} / "
         f"cached: {token_usage.cached_prompt_tokens:,})  \n\n"
         f"---\n\n"
-        f"{final_text}\n"
+        f"## Lead Engineer — Technical Brief\n\n{engineer_output}\n\n"
+        f"---\n\n"
+        f"## Product Marketer — Value Propositions\n\n{marketer_output}\n\n"
+        f"---\n\n"
+        f"## Ghostwriter — LinkedIn Thread Draft\n\n{ghostwriter_output}\n\n"
+        f"---\n\n"
+        f"## Quality Critic — Final Review\n\n{critic_output}\n"
     )
 
     md_path.write_text(md_content, encoding="utf-8")
@@ -214,5 +248,9 @@ def run_report(
         saved_path=md_path,
         execution_time_seconds=elapsed,
         generated_at=generated_at,
+        engineer_output=engineer_output,
+        marketer_output=marketer_output,
+        ghostwriter_output=ghostwriter_output,
+        critic_output=critic_output,
         token_usage=token_usage,
     )

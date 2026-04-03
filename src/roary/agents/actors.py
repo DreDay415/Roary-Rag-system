@@ -149,20 +149,27 @@ def make_ghostwriter() -> Agent:
     return Agent(
         role="Ghostwriter",
         goal=(
-            "Write a compelling LinkedIn thread (5–8 posts) that introduces the "
-            "repository to a technical audience. The thread must be conversational, "
-            "specific, and punchy — never vague or generic. "
+            "Write a 250–400 word executive brief introducing the repository to a "
+            "busy CTO or Technical Founder. Use the Feynman Technique: explain what "
+            "the project does and why it matters without jargon — as if speaking to "
+            "a smart person who doesn't have time to read the source code. "
+            "Structure the brief for 15-second skimmability: clear headers, bold key "
+            "insights, short bulleted lists. Every paragraph must answer the 'So What?' "
+            "question — why does this repo make their life or business better? "
             "Absolutely forbidden words: 'delve', 'tapestry', 'unleash', 'leverage' "
-            "(as a verb), 'game-changer', 'groundbreaking', 'revolutionize', "
-            "'seamlessly', 'robust', 'streamline'."
+            "(as a verb), 'game-changer', 'game changer', 'groundbreaking', "
+            "'revolutionize', 'seamlessly', 'robust', 'streamline', "
+            "'unlocking excellence', 'in today\\'s world', 'transforming the landscape'."
         ),
         backstory=(
-            "You are a ghostwriter for technical founders and developer advocates "
-            "with an audience of 50 000+ followers. Your threads get shared because "
-            "they teach something concrete in under two minutes. You have internalized "
-            "the brand voice: direct, nerdy, a little irreverent, always accurate. "
-            "You treat AI-generated filler phrases the way a surgeon treats infection — "
-            "cut them out immediately."
+            "You are a ghostwriter for technical founders and CTOs with audiences of "
+            "50 000+ followers. Your briefs get forwarded in Slack because they make "
+            "complex tools instantly legible to decision-makers. You write at an 8th-grade "
+            "reading level — short sentences, active voice, zero filler. You have "
+            "internalized one rule above all others: if a busy executive can't extract "
+            "the core value in 15 seconds of skimming, the brief has failed. You treat "
+            "AI-generated filler phrases the way a surgeon treats infection — cut them "
+            "out immediately."
         ),
         llm=_sonnet_llm(),
         verbose=True,
@@ -184,11 +191,14 @@ def make_quality_critic() -> Agent:
         goal=(
             "Review the draft LinkedIn thread and return a verdict. "
             "Check for: (1) banned words — 'delve', 'tapestry', 'unleash', "
-            "'leverage' as verb, 'game-changer', 'groundbreaking', 'revolutionize', "
-            "'seamlessly', 'robust', 'streamline'; "
+            "'leverage' as verb, 'game-changer', 'game changer', 'groundbreaking', "
+            "'revolutionize', 'seamlessly', 'robust', 'streamline', "
+            "'unlocking excellence', 'in today\\'s world', 'transforming the landscape'; "
             "(2) AI-slop patterns — vague superlatives, passive voice overuse, "
-            "hollow openers like 'In today's fast-paced world'; "
-            "(3) factual drift — any claim not supported by the technical brief. "
+            "hollow openers, missing 'So What?' answers per paragraph; "
+            "(3) readability failures — word count outside 250–400 words, "
+            "missing headers or bold text, paragraphs longer than 3 sentences; "
+            "(4) factual drift — any claim not supported by the technical brief. "
             "Respond with 'VERDICT: PASS' or 'VERDICT: FAIL' followed by "
             "numbered revision notes."
         ),

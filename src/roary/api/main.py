@@ -15,8 +15,11 @@ Run locally
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 import time
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
@@ -50,9 +53,14 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "http://localhost:3000",   # Next.js dev server
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",   # alternate dev port
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
@@ -113,7 +121,11 @@ class ReportResponse(BaseModel):
         description="Real token counts from CrewAI — use for cost estimation."
     )
     saved_path: str = Field(description="Absolute path of the persisted .md file.")
-    markdown: str = Field(description="Full Markdown content of the report.")
+    markdown: str = Field(description="Full Markdown content of the report (all four agents).")
+    engineer_output: str = Field(description="Lead Engineer's raw technical brief.")
+    marketer_output: str = Field(description="Product Marketer's raw value propositions.")
+    ghostwriter_output: str = Field(description="Ghostwriter's raw LinkedIn thread draft.")
+    critic_output: str = Field(description="Quality Critic's raw verdict + final thread.")
 
 
 class HeartbeatResponse(BaseModel):
@@ -225,7 +237,34 @@ def generate_report(request: ReportRequest) -> dict[str, Any]:
             detail=f"Crew execution failed: {exc}",
         ) from exc
 
-    # ── 3. Build response ────────────────────────────────────────────────────
+    # ── 3. Persist JSON history entry ────────────────────────────────────────
+    history_dir = Path("data/history")
+    history_dir.mkdir(parents=True, exist_ok=True)
+    history_stem = re.sub(r"[^a-zA-Z0-9_-]", "_", run_result.repo_name)
+    history_ts = run_result.generated_at.replace(":", "").replace("-", "")
+    history_path = history_dir / f"{history_stem}_{history_ts}.json"
+    history_payload: dict[str, Any] = {
+        "repo_name": run_result.repo_name,
+        "github_url": request.github_url,
+        "generated_at": run_result.generated_at,
+        "execution_time_seconds": run_result.execution_time_seconds,
+        "token_usage": {
+            "total_tokens": run_result.token_usage.total_tokens,
+            "prompt_tokens": run_result.token_usage.prompt_tokens,
+            "completion_tokens": run_result.token_usage.completion_tokens,
+            "cached_prompt_tokens": run_result.token_usage.cached_prompt_tokens,
+            "successful_requests": run_result.token_usage.successful_requests,
+        },
+        "saved_path": str(run_result.saved_path.resolve()),
+        "engineer_output": run_result.engineer_output,
+        "marketer_output": run_result.marketer_output,
+        "ghostwriter_output": run_result.ghostwriter_output,
+        "critic_output": run_result.critic_output,
+    }
+    history_path.write_text(json.dumps(history_payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    logger.info("History entry saved → %s", history_path)
+
+    # ── 4. Build response ────────────────────────────────────────────────────
     return {
         "repo_name": run_result.repo_name,
         "github_url": request.github_url,
@@ -240,4 +279,8 @@ def generate_report(request: ReportRequest) -> dict[str, Any]:
         },
         "saved_path": str(run_result.saved_path.resolve()),
         "markdown": run_result.markdown,
+        "engineer_output": run_result.engineer_output,
+        "marketer_output": run_result.marketer_output,
+        "ghostwriter_output": run_result.ghostwriter_output,
+        "critic_output": run_result.critic_output,
     }

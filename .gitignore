@@ -30,6 +30,13 @@ data/chromadb/
 # ── Generated report output (user-private) ────────────────────────────────────
 outputs/
 
+# ── JSON history vault (run logs — user-private) ──────────────────────────────
+data/history/
+
+# ── Next.js build artefacts ───────────────────────────────────────────────────
+frontend/.next/
+frontend/node_modules/
+
 # ── macOS noise ───────────────────────────────────────────────────────────────
 .DS_Store
 .DS_Store?

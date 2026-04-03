@@ -7,17 +7,21 @@
 [![OpenRouter](https://img.shields.io/badge/LLM%20routing-OpenRouter-orange)](https://openrouter.ai)
 [![FastAPI](https://img.shields.io/badge/API-FastAPI-009688)](https://fastapi.tiangolo.com)
 [![CrewAI](https://img.shields.io/badge/orchestration-CrewAI-red)](https://crewai.com)
+[![Next.js](https://img.shields.io/badge/dashboard-Next.js%2016-black)](https://nextjs.org)
+[![Cost](https://img.shields.io/badge/cost%20per%20report-~%240.04-brightgreen)]()
 
 ---
 
 ROARY is a **self-hosted, agentic orchestration engine** that ingests any
-public GitHub repository and autonomously produces brand-aligned content
-marketing assets: LinkedIn threads, technical blog outlines, and product
-battlecards.
+public GitHub repository and autonomously produces brand-aligned executive
+briefs and content marketing assets in under 90 seconds.
 
-It demonstrates enterprise-grade LLM orchestration, dual-RAG vector
-architecture, cost-optimised model routing, and a fully typed FastAPI
-service layer — all deployable on local hardware with a single `uv sync`.
+It ships with a production-grade **Next.js dashboard** featuring glassmorphism
+UI, per-agent tabbed output, real-time skeleton loading, USD cost estimation,
+and one-click ZIP bundle export — all backed by a FastAPI service, dual-RAG
+vector architecture, and a four-agent CrewAI Newsroom.
+
+Deployable on local hardware with a single `uv sync`. Cost per report: **~$0.04**.
 
 ---
 
@@ -60,6 +64,9 @@ GitHub URL  →  Smart Crawler  →  Dual-RAG  →  4-Agent Newsroom  →  Markd
 4. **FastAPI Service** exposes the pipeline as a REST API, ready for
    integration with Paperclip, n8n, or any HTTP client.
 
+5. **Next.js Dashboard** renders the four agent outputs in a tabbed glassmorphism
+   UI with skeleton loading, cost display, and one-click `.md` / `.zip` export.
+
 ---
 
 ## Production Results
@@ -75,6 +82,64 @@ iteration with no revision required.
 ---
 
 ## Key Features
+
+### Production Next.js Dashboard
+
+The `frontend/` directory contains a full **Next.js 16 / React 19 / Tailwind v4**
+dashboard — no template, built from scratch:
+
+| Feature | Detail |
+|---|---|
+| **Glassmorphism hero input** | Dark charcoal + neon-blue accent, blur backdrop |
+| **Multi-agent tabs** | Summary · Lead Engineer · Product Marketer · Ghostwriter |
+| **Skeleton loading UI** | 5 pulsing cards matching the 5 Ghostwriter sections — shown while agents run |
+| **USD Cost Estimator** | Green pill in the meta bar: blended Sonnet/Haiku pricing per run |
+| **Copy-to-clipboard** | Per-tab copy button with 2-second confirmation flash |
+| **Download Report (.md)** | Full combined report as a Markdown file |
+| **Download Bundle (.zip)** | 5-file ZIP: one `.md` per agent + `full_report.md` |
+| **Process Feed** | Timestamped sidebar log of every pipeline state change |
+
+Run it: `cd frontend && npm run dev` (requires backend on `localhost:8000`).
+
+---
+
+### USD Cost Estimator
+
+Every completed report displays a live **estimated cost** in the meta bar,
+calculated from real token counts using blended model pricing:
+
+| Model | Input | Output | Used by |
+|---|---|---|---|
+| `claude-sonnet-4.5` | $3.00 / 1M | $15.00 / 1M | Lead Engineer, Marketer, Ghostwriter |
+| `claude-3.5-haiku` | $0.25 / 1M | $1.25 / 1M | Quality Critic |
+
+Blended average (75% Sonnet / 25% Haiku): ~$2.31/1M input, ~$11.56/1M output.
+Typical cost: **$0.03 – $0.06 per report** — displayed as `$0.04` in the UI.
+
+Token counts come from `CrewOutput.token_usage` (LiteLLM callbacks) — actual
+billed tokens, not estimates.
+
+---
+
+### JSON History Vault
+
+Every completed report is **automatically persisted** to `data/history/` as a
+structured JSON file:
+
+```
+data/history/
+  pallets_flask_20260403T142301Z.json
+  pydantic_pydantic_ai_20260403T153812Z.json
+```
+
+Each file contains the full payload: `repo_name`, `github_url`, `generated_at`,
+`execution_time_seconds`, `token_usage`, `saved_path`, and all four agent outputs
+(`engineer_output`, `marketer_output`, `ghostwriter_output`, `critic_output`).
+
+The directory is created automatically on first run and excluded from git
+(`.gitignore`). Use it for cost auditing, output diffing, and regression testing.
+
+---
 
 ### Strict Pydantic Typing Throughout
 
@@ -212,6 +277,11 @@ See [QUICKSTART.md](./QUICKSTART.md) for:
 | Data validation | Pydantic v2 (frozen models throughout) |
 | API framework | FastAPI + Uvicorn |
 | Environment | `python-dotenv` |
+| **Frontend framework** | **Next.js 16.2.2 / React 19 / TypeScript** |
+| **UI styling** | **Tailwind CSS v4 — glassmorphism dark theme** |
+| **Markdown rendering** | **react-markdown + remark-gfm** |
+| **ZIP export** | **JSZip** |
+| **History persistence** | **JSON vault → `data/history/`** |
 
 ---
 
@@ -240,9 +310,10 @@ secrets. Nothing else is environment-specific.
 | Phase 2 — RAG | ✅ Complete | ChromaDB, local embeddings, similarity search |
 | Phase 3 — Newsroom | ✅ Complete | 4-agent crew, critique loop, Markdown output |
 | Phase 4 — API | ✅ Complete | FastAPI service, Paperclip integration |
-| Phase 5 — Brand Soul RAG | 🔜 Planned | Persistent brand-voice collection, `brand_context` injection |
-| Phase 6 — LangGraph Cycle | 🔜 Planned | Formal FAIL → Ghostwriter retry loop with state graph |
-| Phase 7 — Tracing | 🔜 Planned | LangSmith / Langfuse token cost + agent reasoning graph |
+| Phase 5 — Dashboard | ✅ Complete | Next.js 16 UI — tabs, skeleton UI, cost pill, ZIP export, history vault |
+| Phase 6 — Brand Soul RAG | 🔜 Planned | Persistent brand-voice collection, `brand_context` injection |
+| Phase 7 — LangGraph Cycle | 🔜 Planned | Formal FAIL → Ghostwriter retry loop with state graph |
+| Phase 8 — Tracing | 🔜 Planned | LangSmith / Langfuse token cost + agent reasoning graph |
 
 ---
 
