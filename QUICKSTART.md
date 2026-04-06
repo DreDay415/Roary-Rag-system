@@ -23,8 +23,12 @@
 git clone https://github.com/you/roary.git
 cd roary
 
+# 1. Local Backend Setup
 # uv reads .python-version (3.11) and creates .venv automatically
 uv sync
+
+# 2. Local Frontend Setup
+cd frontend && npm install && cd ..
 ```
 
 `uv sync` resolves all dependencies from `uv.lock` — including `torch`,
@@ -160,12 +164,43 @@ uv run main.py https://github.com/pallets/flask \
 # Default: http://127.0.0.1:8000
 uv run main.py --server
 
-# Custom host/port (production)
-uv run main.py --server --host 0.0.0.0 --port 9000
-
-# With request logging
-uv run main.py --server -v
+# In a second terminal — Start the Frontend
+cd frontend
+npm run dev
 ```
+
+The dashboard will be available at **http://localhost:3000**.
+The API will be available at **http://localhost:8000/api**.
+
+---
+
+## 6. Deploying to Vercel (Production)
+
+ROARY is optimized for Vercel's Edge and Serverless infrastructure.
+
+### 6a. Push to GitHub
+1. Create a new repository on GitHub.
+2. Push your local `ROARY` folder:
+   ```bash
+   git remote add origin https://github.com/youruser/roary.git
+   git branch -M main
+   git push -u origin main
+   ```
+
+### 6b. Vercel Dashboard Configuration
+1. **Import Project**: Select your `roary` repository.
+2. **Framework Preset**: Vercel should auto-detect **Next.js**.
+3. **Environment Variables**: Add the following:
+   - `OPENROUTER_API_KEY`: Your OpenRouter key.
+   - `GITHUB_TOKEN`: Your GitHub Personal Access Token.
+4. **Deploy**: Click Deploy.
+
+### 6c. Verification
+Once deployed, your frontend will automatically route API requests to the Python serverless function via the integrated `vercel.json` rewrites.
+
+---
+
+## 7. Project Layout
 
 ### Swagger UI
 
@@ -291,7 +326,7 @@ roary/
 ├── data/
 │   └── chromadb/            # Persistent vector store (SQLite)
 └── src/roary/
-    ├── crawler/             # GitHub API + git clone + noise filter
+    ├── crawler/             # GitHub API + Pydantic schemas
     ├── rag/                 # ChromaDB client + chunking + embeddings
     ├── agents/              # CrewAI actors, tasks, crew assembly
     └── api/                 # FastAPI application

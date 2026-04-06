@@ -4,24 +4,27 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![uv](https://img.shields.io/badge/managed%20by-uv-blueviolet)](https://astral.sh/uv)
-[![OpenRouter](https://img.shields.io/badge/LLM%20routing-OpenRouter-orange)](https://openrouter.ai)
+[![Vercel](https://img.shields.io/badge/deploy-Vercel-black)](https://vercel.com)
+[![Next.js](https://img.shields.io/badge/dashboard-Next.js%2016-black)](https://nextjs.org)
 [![FastAPI](https://img.shields.io/badge/API-FastAPI-009688)](https://fastapi.tiangolo.com)
 [![CrewAI](https://img.shields.io/badge/orchestration-CrewAI-red)](https://crewai.com)
-[![Next.js](https://img.shields.io/badge/dashboard-Next.js%2016-black)](https://nextjs.org)
 [![Cost](https://img.shields.io/badge/cost%20per%20report-~%240.04-brightgreen)]()
 
 ---
 
-ROARY is a **self-hosted, agentic orchestration engine** that ingests any
+ROARY is a **production-ready, agentic orchestration engine** that ingests any
 public GitHub repository and autonomously produces brand-aligned executive
 briefs and content marketing assets in under 90 seconds.
 
-It ships with a production-grade **Next.js dashboard** featuring glassmorphism
-UI, per-agent tabbed output, real-time skeleton loading, USD cost estimation,
-and one-click ZIP bundle export — all backed by a FastAPI service, dual-RAG
-vector architecture, and a four-agent CrewAI Newsroom.
+It ships with a high-end **Next.js monorepo dashboard** featuring:
+- **Exploded Isometric 3D Loader**: Cinematic loading experience via CSS 3D Transforms.
+- **Vercel-Native Routing**: Unified Next.js + FastAPI serverless architecture.
+- **Multi-Agent Newsroom**: Sequential CrewAI pipeline (Engineer → Marketer → Ghostwriter → Critic).
+- **Mandatory Traceability**: Automatic repository URL injection for factual verification.
+- **One-Click Export**: ZIP bundle generation with per-agent markdown reports.
 
-Deployable on local hardware with a single `uv sync`. Cost per report: **~$0.04**.
+Deployable locally with `uv sync` or globally with a single `git push` to Vercel.
+Cost per report: **~$0.04**.
 
 ---
 
@@ -90,12 +93,13 @@ dashboard — no template, built from scratch:
 
 | Feature | Detail |
 |---|---|
-| **Glassmorphism hero input** | Dark charcoal + neon-blue accent, blur backdrop |
-| **Multi-agent tabs** | Summary · Lead Engineer · Product Marketer · Ghostwriter |
-| **Skeleton loading UI** | 5 pulsing cards matching the 5 Ghostwriter sections — shown while agents run |
-| **USD Cost Estimator** | Green pill in the meta bar: blended Sonnet/Haiku pricing per run |
-| **Copy-to-clipboard** | Per-tab copy button with 2-second confirmation flash |
-| **Download Report (.md)** | Full combined report as a Markdown file |
+| **Isometric 3D Loader** | Premium **Exploded Isometric Cube** animating during agent execution |
+| **Glassmorphism UI** | Dark charcoal + neon-blue accent, blur backdrop, tailored Tailwind v4 system |
+| **Multi-agent tabs** | Summary (Critic) · Lead Engineer · Product Marketer · Ghostwriter |
+| **Skeleton loading UI** | Pulsing secondary elements to maintain focus on the 3D isometric masterpiece |
+| **Mandatory URL Trace** | Automatic injection of source repository URL at the bottom of every story |
+| **USD Cost Estimator** | Green pill in the meta bar: actual token usage cost per run |
+| **Download Report (.md)** | Full combined report as a single Markdown file |
 | **Download Bundle (.zip)** | 5-file ZIP: one `.md` per agent + `full_report.md` |
 | **Process Feed** | Timestamped sidebar log of every pipeline state change |
 
@@ -306,14 +310,13 @@ secrets. Nothing else is environment-specific.
 
 | Phase | Status | Description |
 |---|---|---|
-| Phase 1 — Crawler | ✅ Complete | GitHub API ingestion, Pydantic schema |
-| Phase 2 — RAG | ✅ Complete | ChromaDB, local embeddings, similarity search |
+| Phase 1 — Crawler | ✅ Complete | GitHub API ingestion, Pydantic schema, mandatory URL injection |
+| Phase 2 — RAG | ✅ Complete | ChromaDB, local embeddings, similarity search (Local mode) |
 | Phase 3 — Newsroom | ✅ Complete | 4-agent crew, critique loop, Markdown output |
-| Phase 4 — API | ✅ Complete | FastAPI service, Paperclip integration |
-| Phase 5 — Dashboard | ✅ Complete | Next.js 16 UI — tabs, skeleton UI, cost pill, ZIP export, history vault |
-| Phase 6 — Brand Soul RAG | 🔜 Planned | Persistent brand-voice collection, `brand_context` injection |
-| Phase 7 — LangGraph Cycle | 🔜 Planned | Formal FAIL → Ghostwriter retry loop with state graph |
-| Phase 8 — Tracing | 🔜 Planned | LangSmith / Langfuse token cost + agent reasoning graph |
+| Phase 4 — API | ✅ Complete | FastAPI service, Vercel Serverless Function wrapper |
+| Phase 5 — Dashboard | ✅ Complete | **Production Ready** — Vercel monorepo, 3D Isometric UI, ZIP export |
+| Phase 6 — Cloud Vectors | 🔜 Planned | Swap local Chroma for Upstash/Pinecone for full serverless RAG |
+| Phase 7 — History Persistence| 🔜 Planned | Vercel Blob / KV storage for server-side state |
 
 ---
 

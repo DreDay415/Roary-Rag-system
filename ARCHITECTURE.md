@@ -17,7 +17,8 @@
 6. [Phase 4 — API Layer](#6-phase-4--api-layer)
 7. [Cost-Routing Strategy](#7-cost-routing-strategy)
 8. [Portability Contract](#8-portability-contract)
-9. [Key Design Decisions](#9-key-design-decisions)
+9. [Vercel Monorepo Architecture](#9-vercel-monorepo-architecture)
+10. [Key Design Decisions](#10-key-design-decisions)
 
 ---
 
@@ -50,25 +51,20 @@ flowchart TD
 ## 2. Module Map
 
 ```
-src/roary/
-│
-├── crawler/
-│   ├── github.py       # fetch_repo_summary() — GitHub REST API, 2 round-trips
-│   │                   # crawl()              — shallow git clone + noise filter
-│   └── parser.py       # RepoData             — frozen Pydantic schema (Phase 1 output)
-│
-├── rag/
-│   ├── chroma_db.py    # get_client(), reset_collection(), get_or_create_collection()
-│   └── ingester.py     # ingest_readme(), query_readme()
-│                       # ingest() for full-corpus (Phase 2)
-│
-├── agents/
-│   ├── actors.py       # make_lead_engineer/marketer/ghostwriter/critic()
-│   ├── tasks.py        # build_tasks() — wires context chain between tasks
-│   └── crew.py         # build_crew(), run_report() → RunResult
-│
-└── api/
-    └── main.py         # FastAPI app: GET /heartbeat, POST /generate-report
+ROARY/
+├── api/                # Vercel Serverless Function entrypoint
+│   ├── index.py        # Python lambda wrapper (FastAPI mount)
+│   └── requirements.txt# Slimmed dependencies (no torch)
+├── frontend/           # Next.js 16 Dashboard
+│   ├── src/app/        # React components + 3D Loader
+│   └── vercel.json     # Frontend-specific config
+├── src/roary/          # Core Agentic Logic (shared)
+│   ├── crawler/        # GitHub API + Pydantic schemas
+│   ├── rag/            # ChromaDB + Ingester
+│   ├── agents/         # CrewAI Actors + Tasks
+│   └── api/            # Main FastAPI implementation
+├── vercel.json         # Root monorepo orchestrator
+└── main.py             # CLI Entrypoint
 ```
 
 ---
@@ -398,6 +394,37 @@ from langchain_openai import OpenAIEmbeddings
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 # ~$0.00002 / 1K tokens — negligible for README-sized content
 ```
+
+---
+
+## 9. Vercel Monorepo Architecture
+
+ROARY is architected to deploy as a unified monorepo on Vercel.
+
+### 9a. Topology
+
+```mermaid
+graph TD
+    User([User Browser]) --> Vercel[Vercel Edge]
+    Vercel -->|/api/*| Lambda[Python Serverless Function\napi/index.py]
+    Vercel -->|/*| NextJS[Next.js 16 Dashboard\nfrontend/]
+    
+    Lambda -->|LiteLLM| LLM[[OpenRouter AI]]
+    NextJS -->|Client-side| Lambda
+```
+
+### 9b. Request Routing (vercel.json)
+
+The root `vercel.json` acts as the traffic controller:
+- **Build Scoping**: Directs `@vercel/next` to the `frontend/` folder and `@vercel/python` to the `api/` folder.
+- **Rewrites**: Maps all `/api/:path*` requests to the Python entrypoint.
+- **Header Injection**: Enforces CORS for cross-origin development.
+
+### 9c. Dependency Optimization
+
+To fit within Vercel's **250MB uncompressed limit**, we maintain a split dependency strategy:
+- `requirements.txt` (Root): Full RAG stack (Torch, Chroma, Transformers).
+- `api/requirements.txt` (Vercel): Agent-only stack (CrewAI, FastAPI, Pydantic).
 
 ---
 
