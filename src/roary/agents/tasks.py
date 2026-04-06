@@ -119,13 +119,19 @@ def build_tasks(
             f"BANNED WORDS (zero tolerance):\n"
             f"  delve, tapestry, unleash, leverage (verb), game-changer, game changer,\n"
             f"  groundbreaking, revolutionize, seamlessly, robust, streamline,\n"
-            f"  unlocking excellence, in today's world, transforming the landscape"
+            f"  unlocking excellence, in today's world, transforming the landscape\n\n"
+            f"REPOSITORY URL (mandatory):\n"
+            f"  The final content line of the brief MUST be the repository URL on its\n"
+            f"  own line, preceded by a blank line, exactly as written:\n"
+            f"  {repo.github_url}"
         ),
         expected_output=(
             "A 250–400 word executive brief in Markdown with five clearly labelled "
             "sections: headline, The Problem, What It Does, Why It Matters, Get Started. "
-            "No preamble, no meta-commentary. Word count must appear on the final line "
-            "as: '<!-- words: N -->'"
+            f"The second-to-last content line must be a blank line followed by the "
+            f"repository URL '{repo.github_url}' on its own line. "
+            "No preamble, no meta-commentary. Word count must appear on the very last "
+            "line as: '<!-- words: N -->'"
         ),
         agent=ghostwriter,
         context=[task_analyze, task_extract],
@@ -148,7 +154,12 @@ def build_tasks(
             "Get Started) are missing, or if any paragraph exceeds 3 sentences.\n"
             "4. **Factual accuracy**: every claim must trace to the Lead Engineer's "
             "brief. Flag anything unverifiable.\n"
-            "5. **Brand voice**: second-person, 8th-grade level, active voice.\n\n"
+            "5. **Brand voice**: second-person, 8th-grade level, active voice.\n"
+            f"6. **Repository URL**: the brief MUST contain the repository URL "
+            f"'{repo.github_url}' on its own line immediately before the word-count "
+            f"comment. If the URL is missing or incorrect, that is an automatic "
+            f"VERDICT: FAIL — add a revision note instructing the Ghostwriter to "
+            f"append it.\n\n"
             "Return your verdict on the FIRST line as exactly one of:\n"
             "  VERDICT: PASS\n"
             "  VERDICT: FAIL\n"

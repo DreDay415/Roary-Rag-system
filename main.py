@@ -223,6 +223,7 @@ def main() -> None:
 
     repo = RepoData(
         repo_name=summary.full_name,
+        github_url=summary.url,
         description=summary.description,
         readme=summary.readme_content,
     )

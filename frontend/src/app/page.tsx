@@ -111,7 +111,8 @@ export default function RoaryDashboard() {
       setStatus('thinking')
       pushFeed('thinking', 'Newsroom running — Lead Engineer → Marketer → Ghostwriter → Critic')
 
-      const res = await fetch('http://localhost:8000/generate-report', {
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${backendUrl}/generate-report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ github_url: url.trim() }),
@@ -537,59 +538,75 @@ const SKELETON_SECTIONS = [
   { label: 'Get Started', width: 'w-1/2', lines: 1 },
 ]
 
+/* ── 3D Cube Loader ── */
+
+function CubeLoader() {
+  return (
+    <div className="flex items-center justify-center mb-12" style={{ perspective: '1200px' }}>
+      <div className="cube-container">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="side" />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function LoadingState({ status }: { status: Status }) {
   return (
     <div className="max-w-3xl mx-auto">
-      {/* Skeleton meta bar */}
+      {/* Skeleton meta bar — 20% opacity, secondary element */}
       <div
         className="flex items-center gap-3 mb-4 rounded-xl px-4 py-3"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', opacity: 0.2 }}
       >
         <div className="h-4 w-32 rounded animate-pulse" style={{ background: 'var(--surface-2)' }} />
         <div className="flex-1" />
         {[56, 72, 64, 52].map((w, i) => (
-          <div key={i} className={`h-6 w-${w === 56 ? '14' : w === 72 ? '16' : w === 64 ? '16' : '12'} rounded-md animate-pulse`} style={{ background: 'var(--surface-2)', width: w }} />
+          <div key={i} className="h-6 rounded-md animate-pulse" style={{ background: 'var(--surface-2)', width: w }} />
         ))}
       </div>
 
-      {/* Skeleton tab bar */}
+      {/* Skeleton tab bar — 20% opacity */}
       <div
         className="flex items-center gap-1 mb-4 rounded-xl p-1"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', opacity: 0.2 }}
       >
         {[0, 1, 2, 3].map(i => (
-          <div key={i} className="flex-1 h-8 rounded-lg animate-pulse" style={{ background: i === 0 ? 'var(--neon-blue-dim)' : 'var(--surface-2)', opacity: i === 0 ? 1 : 0.5 }} />
+          <div key={i} className="flex-1 h-8 rounded-lg animate-pulse" style={{ background: i === 0 ? 'var(--neon-blue-dim)' : 'var(--surface-2)' }} />
         ))}
       </div>
 
-      {/* Status label */}
-      <div className="flex items-center gap-2 mb-3 px-1">
-        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[status]}`} />
-        <span className={`text-xs font-medium ${STATUS_COLORS[status]}`}>
-          {status === 'ingesting' ? 'Crawling repository…' : 'Newsroom agents running…'}
-        </span>
+      {/* Primary focus: cube + status */}
+      <div className="flex flex-col items-center gap-4 py-6">
+        <CubeLoader />
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[status]}`} />
+          <span className={`text-xs font-medium ${STATUS_COLORS[status]}`}>
+            {status === 'ingesting' ? 'Crawling repository…' : 'Newsroom agents running…'}
+          </span>
+        </div>
       </div>
 
-      {/* Skeleton content card */}
+      {/* Skeleton content card — 20% opacity */}
       <div
         className="rounded-2xl p-6"
         style={{
           background: 'var(--glass-bg)',
           border: '1px solid var(--glass-border)',
           backdropFilter: 'blur(12px)',
+          opacity: 0.2,
         }}
       >
         <div className="flex flex-col gap-6">
           {SKELETON_SECTIONS.map((section, si) => (
             <div key={si} className="flex flex-col gap-2">
-              {/* Section label */}
               <div className="flex items-center gap-2 mb-1">
                 <div className="h-3 w-3 rounded-sm animate-pulse" style={{ background: 'var(--neon-blue-dim)' }} />
                 <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--foreground-muted)' }}>
                   {section.label}
                 </span>
               </div>
-              {/* Skeleton lines */}
               {Array.from({ length: section.lines }).map((_, li) => (
                 <div
                   key={li}
@@ -617,9 +634,9 @@ function ErrorState({ message }: { message: string }) {
       <h3 className="font-semibold text-red-400 mb-2">Generation Failed</h3>
       <p className="text-sm font-mono break-all" style={{ color: 'var(--foreground-muted)' }}>{message}</p>
       <p className="text-xs mt-3" style={{ color: 'var(--foreground-muted)' }}>
-        Make sure the ROARY backend is running on{' '}
+        Make sure the ROARY backend is reachable at{' '}
         <code className="px-1 py-0.5 rounded" style={{ background: 'var(--surface-2)', color: 'var(--neon-blue)' }}>
-          localhost:8000
+          {process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}
         </code>{' '}
         and the URL is a public GitHub repo.
       </p>

@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 # Well-known names — import these everywhere instead of raw strings
 # ---------------------------------------------------------------------------
 
-DEFAULT_PERSIST_DIR: str = "./data/chromadb"
+import os
+
+DEFAULT_PERSIST_DIR: str = os.getenv("CHROMA_PERSIST_DIR", "./data/chromadb")
 """Default directory (relative to CWD) where ChromaDB persists its data."""
 
 CODE_CONTEXT_COLLECTION: str = "code_context"

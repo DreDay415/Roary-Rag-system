@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.git/
+.venv/
+data/
+outputs/
+backend.log
+frontend.log
+.DS_Store

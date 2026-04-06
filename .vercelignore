@@ -1,0 +1,11 @@
+# Vercel upload exclusions — keep the deployment slim
+.venv/
+.chroma/
+data/
+outputs/
+master_boilerplate/
+uv.lock
+*.webp
+*.sqlite3
+frontend/node_modules/
+frontend/.next/

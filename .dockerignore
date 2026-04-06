@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+.git/
+.chroma/
+data/
+outputs/
+backend.log
+frontend.log
+.DS_Store
+Dockerfile.*
+docker-compose.yml
+install_cloudflare*

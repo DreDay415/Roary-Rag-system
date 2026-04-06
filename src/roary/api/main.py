@@ -54,13 +54,14 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",   # Next.js dev server
+        "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "http://localhost:3001",   # alternate dev port
+        "https://roary-frontend.vercel.app",  # TODO: Replace with your actual Vercel URL
+        "https://roary-frontend-*.vercel.app", # Allows Vercel preview deployments
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -213,6 +214,7 @@ def generate_report(request: ReportRequest) -> dict[str, Any]:
 
     repo = RepoData(
         repo_name=summary.full_name,
+        github_url=summary.url,
         description=summary.description,
         readme=summary.readme_content,
     )

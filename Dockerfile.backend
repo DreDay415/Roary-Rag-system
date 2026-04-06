@@ -1,0 +1,34 @@
+# Use the official uv image for fast Python builds
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS build
+
+WORKDIR /app
+
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1
+
+# Copy project files
+COPY pyproject.toml uv.lock README.md ./
+COPY src/ ./src/
+COPY main.py .
+
+# Install dependencies
+RUN uv sync --frozen --no-dev
+
+# Use a final runtime image for smaller size
+FROM python:3.11-slim-bookworm
+
+WORKDIR /app
+
+# Copy the virtual environment and app code
+COPY --from=build /app /app
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Create directories for persistent data
+RUN mkdir -p data outputs
+
+# Expose the FastAPI port
+EXPOSE 8000
+
+# Start the server
+CMD ["python", "main.py", "--server", "--host", "0.0.0.0", "--port", "8000"]

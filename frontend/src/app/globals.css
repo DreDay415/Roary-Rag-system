@@ -126,3 +126,98 @@ body {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* ── Exploded Isometric Loader ─────────────────────────────────────────── */
+
+.cube-container {
+  font-size: 80px;
+  height: 1em;
+  width: 1em;
+  position: relative;
+  transform-style: preserve-3d;
+  animation: cube-spin 1.6s infinite ease-in-out alternate both;
+  color: var(--neon-blue);
+  pointer-events: none;
+}
+
+.cube-stage {
+  perspective: 800px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  width: 150px;
+}
+
+.side {
+  position: absolute;
+  top: 0; bottom: 0; left: 0; right: 0;
+  transform-style: preserve-3d;
+}
+
+.side::before,
+.side::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: 0; right: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.side::before {
+  background-color: rgba(59, 130, 246, 0.8);
+  box-shadow: 0 0 30px var(--neon-blue-glow);
+  transform-style: preserve-3d;
+}
+.side::after {
+  background: currentColor;
+  animation: cube-explode-inside 1.6s infinite ease-in-out both;
+}
+
+.side:nth-child(1) { transform: rotateY( 90deg); }
+.side:nth-child(2) { transform: rotateY(180deg); }
+.side:nth-child(3) { transform: rotateY(270deg); }
+.side:nth-child(4) { transform: rotateY(360deg); }
+.side:nth-child(5) { transform: rotateX( 90deg); }
+.side:nth-child(6) { transform: rotateX(270deg); }
+
+.side:nth-child(2)::before,
+.side:nth-child(4)::before {
+  color: #fff;
+  animation: cube-explode-top-bottom 1.6s infinite ease-in-out both;
+}
+
+.side:nth-child(1)::before,
+.side:nth-child(3)::before {
+  animation: cube-explode-sides-a 1.6s infinite ease-in-out both;
+}
+
+.side:nth-child(5)::before,
+.side:nth-child(6)::before {
+  animation: cube-explode-sides-b 1.6s infinite ease-in-out both;
+}
+
+@keyframes cube-spin {
+  0%   { transform: rotateX(54.736deg) rotateZ( 45deg); }
+  100% { transform: rotateX(54.736deg) rotateZ(405deg); }
+}
+
+@keyframes cube-explode-top-bottom {
+  0%, 100% { transform: translateZ(0.5em); }
+  50%       { transform: translateZ(0.8333em); }
+}
+
+@keyframes cube-explode-sides-a {
+  0%, 100% { transform: translateZ(0.5em); color: rgba(59, 130, 246, 0.4); }
+  50%       { transform: translateZ(0.8333em); color: rgba(59, 130, 246, 0.7); }
+}
+
+@keyframes cube-explode-sides-b {
+  0%, 100% { transform: translateZ(0.5em); color: rgba(59, 130, 246, 0.7); }
+  50%       { transform: translateZ(0.8333em); color: rgba(59, 130, 246, 0.4); }
+}
+
+@keyframes cube-explode-inside {
+  0%, 100% { transform: translateZ(0.5em) scaleZ(-1); }
+  50%       { transform: translateZ(0.8333em) scaleZ(-1); }
+}

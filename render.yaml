@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: roary-backend
+    env: python
+    buildCommand: "uv sync --frozen --no-dev"
+    startCommand: "python main.py --server --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: CHROMA_PERSIST_DIR
+        value: /data/chromadb
+      - key: OPENROUTER_API_KEY
+        sync: false # Set this manually in the dashboard
+    disk:
+      name: roary-data
+      mountPath: /data
+      sizeGB: 1

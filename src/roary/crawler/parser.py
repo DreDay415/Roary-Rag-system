@@ -22,6 +22,11 @@ class RepoData(BaseModel):
         description="Canonical 'owner/repo' identifier, e.g. 'tiangolo/fastapi'.",
         examples=["octocat/Hello-World"],
     )
+    github_url: str = Field(
+        ...,
+        description="Full public GitHub URL passed to the crawler, e.g. 'https://github.com/owner/repo'.",
+        examples=["https://github.com/octocat/Hello-World"],
+    )
     description: str | None = Field(
         default=None,
         description="Repository description as set by the owner. None when blank.",

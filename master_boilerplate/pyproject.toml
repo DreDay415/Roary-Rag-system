@@ -1,0 +1,24 @@
+[project]
+name = "master_boilerplate"
+version = "0.1.0"
+description = "Autonomous Multi-Agent Boilerplate (Claude & Gemini)"
+authors = [{ name = "dredog", email = "dredog@example.com" }]
+requires-python = ">=3.11"
+dependencies = [
+    "crewai>=0.28.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "chromadb>=0.4.0",
+    "langchain>=0.1.0",
+    "openai>=1.0.0",
+]
+
+[tool.uv]
+active = true
+index-url = "https://pypi.org/simple"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

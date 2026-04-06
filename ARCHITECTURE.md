@@ -327,7 +327,81 @@ no `pip install --upgrade` surprises in production.
 
 ---
 
-## 9. Key Design Decisions
+## 9. Vercel Serverless Deployment
+
+### Architecture mapping
+
+```
+Vercel deployment (monorepo)
+├── api/
+│   ├── index.py          ← @vercel/python serverless function
+│   └── requirements.txt  ← slimmed deps, no torch/sentence-transformers
+├── frontend/             ← @vercel/next build
+└── vercel.json           ← root orchestrator: rewrites /api/* → api/index.py
+```
+
+Requests flow:
+```
+Browser → /api/generate-report
+           ↓ vercel.json rewrite
+         api/index.py  (mounts _roary_app at /api → strips prefix)
+           ↓
+         roary.api.main:app  POST /generate-report
+```
+
+### Persistence layer — **CRITICAL WARNING**
+
+> **Vercel's filesystem is ephemeral.** Every invocation of the Python
+> serverless function starts from a fresh, read-only filesystem.
+> Nothing written to `./data/`, `./outputs/`, or `./data/chromadb/`
+> survives between requests.
+
+**Impacted features and required migrations:**
+
+| Feature | Local implementation | Required Vercel alternative |
+|---|---|---|
+| ChromaDB vectors (`code_context`) | `./data/chromadb/` SQLite | [Upstash Vector](https://upstash.com/docs/vector/overall/getstarted) \| [Pinecone](https://www.pinecone.io/) \| [MongoDB Atlas Vector Search](https://www.mongodb.com/products/platform/atlas-vector-search) |
+| Brand soul vectors (`brand_soul`) | `./data/chromadb/` SQLite | Same as above (persistent collection) |
+| Markdown report files | `./outputs/*.md` | [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) \| S3 pre-signed URL |
+| JSON history vault | `./data/history/*.json` | [Vercel KV](https://vercel.com/docs/storage/vercel-kv) \| Upstash Redis |
+
+### Dependency size budget
+
+Vercel Python serverless limit: **250 MB** per function (uncompressed).
+
+| Package | Size | Status in `api/requirements.txt` |
+|---|---|---|
+| `torch` | ~2.5 GB | ❌ **EXCLUDED** — fatal overrun |
+| `sentence-transformers` | ~90 MB + torch | ❌ **EXCLUDED** — pulls torch |
+| `transformers` | ~250 MB + torch | ❌ **EXCLUDED** — pulls torch |
+| `langchain-huggingface` | small | ❌ **EXCLUDED** — pulls above |
+| `chromadb` + `onnxruntime` | ~180 MB | ❌ **EXCLUDED** for now |
+| `crewai` + transitive | ~80 MB | ✅ included |
+| `fastapi` + `pydantic` | ~15 MB | ✅ included |
+
+The current `/generate-report` endpoint does **not** invoke the RAG ingester,
+so all excluded packages are safe to drop.  If RAG is re-enabled on Vercel,
+replace `HuggingFaceEmbeddings` with `OpenAIEmbeddings` (already a transitive
+dep) and swap `chromadb.PersistentClient` for a hosted vector DB client.
+
+### Recommended embedding migration for production RAG
+
+```python
+# Replace in src/roary/rag/ingester.py:
+
+# BEFORE (incompatible with Vercel)
+from langchain_huggingface import HuggingFaceEmbeddings
+embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+# AFTER (serverless-compatible, already a dep via crewai → openai)
+from langchain_openai import OpenAIEmbeddings
+embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+# ~$0.00002 / 1K tokens — negligible for README-sized content
+```
+
+---
+
+## 10. Key Design Decisions
 
 | Decision | Rationale |
 |---|---|

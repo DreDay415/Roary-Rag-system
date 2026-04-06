@@ -1,0 +1,252 @@
+// an update to my original https://codepen.io/scootman/pen/NMZRNa
+// utilising backface-visibility and animated coloring
+
+$iso-rotx: 54.736deg;
+$color-1: hsl(185, 95%, 40%);
+$color-2: hsl(35, 100%, 50%);
+$color-fgd-light: white;
+$color-fgd-mid: hsl(240, 8%, 60%);
+$color-fgd-dark: hsl(240, 8%, 30%);
+$color-bgd: hsl(240, 8%, 12%);
+
+$spin-time: 1.6s;
+$explode-offset: .3333em;
+
+// typeface (an awesome one by Jeremy Tribby)
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400&display=swap');
+
+// standard transition
+$transition: all .1s ease-in-out;
+
+
+body {
+    display: flex;
+    height: 100vh;
+    background: $color-bgd;
+    color: orange;
+    animation: cube-inside-color ($spin-time * 2) infinite both;
+    font-family: 'Barlow', sans-serif;
+    justify-content: center;
+    align-items: center;
+    font-size: 13px;
+}
+
+.cube {
+    font-size: 24px;
+    height: 1em;
+    width: 1em;
+    position: relative;
+    transform-style: preserve-3d;
+    animation: cube-spin $spin-time infinite ease-in-out alternate both;
+}
+
+.side {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transform-style: preserve-3d;
+
+    // psudeo elements are used to simplify the animation transformations
+    &::before {
+        // outside
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: currentcolor;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+    }
+
+    &::after {
+        // inside (scaleZ transform in animation flips these to face inwards)
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: currentcolor;
+        animation: cube-explode-inside $spin-time infinite ease-in-out both;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+    }
+
+    @for $i from 1 through 4 {
+        &:nth-child(#{$i}) {
+            transform: rotateY(90deg * $i);
+        }
+    }
+
+    &:nth-child(5) {
+        transform: rotateX(90deg);
+    }
+
+    &:nth-child(6) {
+        transform: rotateX(270deg);
+    }
+
+    &:nth-child(4)::before,
+    &:nth-child(2)::before {
+        color: $color-fgd-light;
+        animation: cube-explode-top-bottom $spin-time infinite ease-in-out both;
+    }
+
+    &:nth-child(1)::before,
+    &:nth-child(3)::before {
+        animation: cube-explode-sides-a $spin-time infinite ease-in-out both;
+    }
+
+    &:nth-child(5)::before,
+    &:nth-child(6)::before {
+        animation: cube-explode-sides-b $spin-time infinite ease-in-out both;
+    }
+
+}
+
+
+.links {
+    display: flex;
+    position: absolute;
+    bottom: 18px;
+    color: white;
+    animation: fadeIn 1s ease-in-out ($spin-time * 4) both;
+
+    a {
+        all: unset;
+        display: block;
+        padding: .5em;
+        cursor: pointer;
+        opacity: .3;
+        transition: $transition;
+
+        &:hover {
+            opacity: .6;
+        }
+    }
+}
+
+
+@keyframes cube-inside-color {
+    0% {
+        color: $color-1;
+    }
+
+    50% {
+        color: $color-1;
+    }
+
+    51% {
+        color: $color-2;
+    }
+
+    100% {
+        color: $color-2;
+    }
+}
+
+@keyframes cube-spin {
+    0% {
+        transform: rotateX(54.736deg) rotateZ(45deg);
+    }
+
+    100% {
+        transform: rotateX(54.736deg) rotateZ(45deg + 360deg);
+    }
+}
+
+@keyframes cube-explode-top-bottom {
+    0% {
+        transform: translateZ(.5em);
+    }
+
+    50% {
+        transform: translateZ(.5em + $explode-offset);
+    }
+
+    100% {
+        transform: translateZ(.5em);
+    }
+}
+
+@keyframes cube-explode-sides-a {
+
+    // color changes with spin to maintain natural lighting of cube
+    0% {
+        transform: translateZ(.5em);
+        color: $color-fgd-dark;
+    }
+
+    40% {
+        color: $color-fgd-mid;
+    }
+
+    50% {
+        transform: translateZ(.5em + $explode-offset);
+        color: $color-fgd-dark;
+    }
+
+    60% {
+        color: $color-fgd-mid;
+    }
+
+    100% {
+        transform: translateZ(.5em);
+        color: $color-fgd-dark;
+    }
+}
+
+@keyframes cube-explode-sides-b {
+
+    // color changes with spin to maintain natural lighting of cube
+    0% {
+        transform: translateZ(.5em);
+        color: $color-fgd-mid;
+    }
+
+    40% {
+        color: $color-fgd-dark;
+    }
+
+    50% {
+        transform: translateZ(.5em + $explode-offset);
+        color: $color-fgd-mid;
+    }
+
+    60% {
+        color: $color-fgd-dark;
+    }
+
+    100% {
+        transform: translateZ(.5em);
+        color: $color-fgd-mid;
+    }
+}
+
+@keyframes cube-explode-inside {
+    0% {
+        transform: translateZ(.5em) scaleZ(-1);
+    }
+
+    50% {
+        transform: translateZ(.5em + $explode-offset) scaleZ(-1);
+    }
+
+    100% {
+        transform: translateZ(.5em) scaleZ(-1);
+    }
+}
+
+@keyframes fadeIn {
+    0% {
+        opacity: 0;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
