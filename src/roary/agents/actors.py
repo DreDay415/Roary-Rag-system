@@ -9,11 +9,11 @@ Four agents, each with a distinct specialisation and cost-optimised model:
 |                       | repository — stack, purpose,  | (deep code reasoning)          |
 |                       | and core logic extraction.    |                                |
 +-----------------------+-------------------------------+--------------------------------+
-| Product Marketer      | Translate the technical brief | claude-3.5-sonnet (OpenRouter) |
-|                       | into market-facing value      |                                |
+| Product Marketer      | Translate the technical brief | claude-3.5-haiku (OpenRouter)  |
+|                       | into market-facing value      | (fast, cheap copy generation)  |
 |                       | propositions.                 |                                |
 +-----------------------+-------------------------------+--------------------------------+
-| Ghostwriter           | Draft the final content asset | claude-3.5-sonnet (OpenRouter) |
+| Ghostwriter           | Draft the final content asset | claude-3.5-haiku (OpenRouter)  |
 |                       | (LinkedIn thread, blog post)  |                                |
 |                       | in the correct brand voice.   |                                |
 +-----------------------+-------------------------------+--------------------------------+
@@ -133,7 +133,7 @@ def make_product_marketer() -> Agent:
             "and you know how to articulate why that matters to a technical buyer. "
             "You despise vague buzzwords and always back claims with specifics."
         ),
-        llm=_sonnet_llm(),
+        llm=_haiku_llm(),
         verbose=True,
         allow_delegation=False,
     )
@@ -171,7 +171,7 @@ def make_ghostwriter() -> Agent:
             "AI-generated filler phrases the way a surgeon treats infection — cut them "
             "out immediately."
         ),
-        llm=_sonnet_llm(),
+        llm=_haiku_llm(),
         verbose=True,
         allow_delegation=False,
     )
