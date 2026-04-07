@@ -1,38 +1,14 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/next"
-    },
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxDuration": 300,
-        "runtime": "python3.11"
-      }
-    }
-  ],
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/.next",
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_API_URL": "/api"
+  },
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/index.py"
-    }
-  ],
-  "env": {
-    "NEXT_PUBLIC_API_URL": "/api",
-    "OPENROUTER_API_KEY": "@openrouter-api-key",
-    "GITHUB_TOKEN": "@github-token"
-  },
-  "headers": [
-    {
       "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type" }
-      ]
+      "destination": "https://roary-api-62437261578.us-central1.run.app/$1"
     }
   ]
 }
