@@ -3,12 +3,6 @@
   "outputDirectory": ".next",
   "framework": "nextjs",
   "env": {
-    "NEXT_PUBLIC_API_URL": "/api"
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "https://roary-api-62437261578.us-central1.run.app/$1"
-    }
-  ]
+    "NEXT_PUBLIC_API_URL": "https://roary-api-62437261578.us-central1.run.app"
+  }
 }

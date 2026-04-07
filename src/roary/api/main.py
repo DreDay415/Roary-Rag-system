@@ -17,12 +17,18 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+
+# Vercel sets VERCEL=1 automatically at runtime.
+# History writes are skipped there — /tmp is ephemeral and the payload
+# is already returned in the JSON response.
+_ON_VERCEL: bool = bool(os.getenv("VERCEL"))
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, HttpUrl
@@ -53,12 +59,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://roary-frontend.vercel.app",  # TODO: Replace with your actual Vercel URL
-        "https://roary-frontend-*.vercel.app", # Allows Vercel preview deployments
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -239,32 +240,37 @@ def generate_report(request: ReportRequest) -> dict[str, Any]:
             detail=f"Crew execution failed: {exc}",
         ) from exc
 
-    # ── 3. Persist JSON history entry ────────────────────────────────────────
-    history_dir = Path("data/history")
-    history_dir.mkdir(parents=True, exist_ok=True)
-    history_stem = re.sub(r"[^a-zA-Z0-9_-]", "_", run_result.repo_name)
-    history_ts = run_result.generated_at.replace(":", "").replace("-", "")
-    history_path = history_dir / f"{history_stem}_{history_ts}.json"
-    history_payload: dict[str, Any] = {
-        "repo_name": run_result.repo_name,
-        "github_url": request.github_url,
-        "generated_at": run_result.generated_at,
-        "execution_time_seconds": run_result.execution_time_seconds,
-        "token_usage": {
-            "total_tokens": run_result.token_usage.total_tokens,
-            "prompt_tokens": run_result.token_usage.prompt_tokens,
-            "completion_tokens": run_result.token_usage.completion_tokens,
-            "cached_prompt_tokens": run_result.token_usage.cached_prompt_tokens,
-            "successful_requests": run_result.token_usage.successful_requests,
-        },
-        "saved_path": str(run_result.saved_path.resolve()),
-        "engineer_output": run_result.engineer_output,
-        "marketer_output": run_result.marketer_output,
-        "ghostwriter_output": run_result.ghostwriter_output,
-        "critic_output": run_result.critic_output,
-    }
-    history_path.write_text(json.dumps(history_payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    logger.info("History entry saved → %s", history_path)
+    # ── 3. Persist JSON history entry (local only) ───────────────────────────
+    # Skipped on Vercel: the filesystem is read-only outside /tmp and the
+    # full payload is already returned in the JSON response below.
+    if not _ON_VERCEL:
+        history_dir = Path("data/history")
+        history_dir.mkdir(parents=True, exist_ok=True)
+        history_stem = re.sub(r"[^a-zA-Z0-9_-]", "_", run_result.repo_name)
+        history_ts = run_result.generated_at.replace(":", "").replace("-", "")
+        history_path = history_dir / f"{history_stem}_{history_ts}.json"
+        history_payload: dict[str, Any] = {
+            "repo_name": run_result.repo_name,
+            "github_url": request.github_url,
+            "generated_at": run_result.generated_at,
+            "execution_time_seconds": run_result.execution_time_seconds,
+            "token_usage": {
+                "total_tokens": run_result.token_usage.total_tokens,
+                "prompt_tokens": run_result.token_usage.prompt_tokens,
+                "completion_tokens": run_result.token_usage.completion_tokens,
+                "cached_prompt_tokens": run_result.token_usage.cached_prompt_tokens,
+                "successful_requests": run_result.token_usage.successful_requests,
+            },
+            "saved_path": str(run_result.saved_path.resolve()),
+            "engineer_output": run_result.engineer_output,
+            "marketer_output": run_result.marketer_output,
+            "ghostwriter_output": run_result.ghostwriter_output,
+            "critic_output": run_result.critic_output,
+        }
+        history_path.write_text(json.dumps(history_payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        logger.info("History entry saved → %s", history_path)
+    else:
+        logger.info("Vercel runtime detected — history write skipped (payload returned in response)")
 
     # ── 4. Build response ────────────────────────────────────────────────────
     return {
