@@ -46,7 +46,7 @@ load_dotenv()
 
 # claude-3.5-sonnet routes to Bedrock on this account and fails.
 # claude-sonnet-4.5 and claude-3.5-haiku both route via Anthropic's direct API.
-_SONNET: str = "openrouter/anthropic/claude-sonnet-4.5"
+_SONNET: str = "openrouter/deepseek/deepseek-chat"
 _HAIKU: str = "openrouter/anthropic/claude-3.5-haiku"
 
 
