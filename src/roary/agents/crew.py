@@ -19,11 +19,16 @@ from the Critic loops back to the Ghostwriter.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Vercel sets VERCEL=1 automatically in all serverless environments.
+# When true, redirect all disk writes to /tmp (the only writable directory).
+_ON_VERCEL: bool = bool(os.getenv("VERCEL"))
 
 from crewai import Crew, Process
 
@@ -172,7 +177,8 @@ def run_report(
         EnvironmentError: If ``OPENROUTER_API_KEY`` is not set (raised by the
             agent factories before any LLM calls are made).
     """
-    output_path = Path(output_dir)
+    # On Vercel only /tmp is writable; redirect there transparently.
+    output_path = Path("/tmp") if _ON_VERCEL else Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
     crew = build_crew(repo, verbose=verbose)
