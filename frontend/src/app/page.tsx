@@ -75,20 +75,105 @@ function slugify(name: string): string {
   return name.replace(/[^a-zA-Z0-9_-]/g, '_')
 }
 
+interface HistoryItem {
+  id: string
+  type: 'report' | 'chat'
+  repo_name: string
+  title: string
+  github_url: string
+  generated_at: string
+}
+
+interface ChatResponse {
+  type: 'chat'
+  repo_name: string
+  question: string
+  answer: string
+  sources: string[]
+  generated_at: string
+}
+
 export default function RoaryDashboard() {
   const [url, setUrl] = useState('')
+  const [question, setQuestion] = useState('')
   const [status, setStatus] = useState<Status>('idle')
   const [feed, setFeed] = useState<FeedEvent[]>([
     { id: 0, status: 'idle', message: 'Awaiting GitHub URL.', timestamp: timestamp() },
   ])
   const [report, setReport] = useState<ReportResponse | null>(null)
+  const [chat, setChat] = useState<ChatResponse | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>('summary')
+  const [showSidebar, setShowSidebar] = useState(false)
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false)
+  
   const feedEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     feedEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [feed])
+
+  // Initial fetch
+  useEffect(() => {
+    fetchHistory()
+  }, [])
+
+  // Close sidebar on mobile when report is ready
+  useEffect(() => {
+    if ((status === 'ready' || status === 'error') && typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setShowSidebar(false)
+    }
+  }, [status])
+
+  async function fetchHistory() {
+    setIsHistoryLoading(true)
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${backendUrl}/history`)
+      if (res.ok) {
+        const data = await res.json()
+        setHistory(data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch history:', err)
+    } finally {
+      setIsHistoryLoading(false)
+    }
+  }
+
+  async function loadFromHistory(item: HistoryItem) {
+    setStatus('thinking')
+    pushFeed('thinking', `Loading archive: ${item.title}...`)
+    setReport(null)
+    setChat(null)
+    
+    // Close sidebar on mobile
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setShowSidebar(false)
+    }
+
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${backendUrl}/history/${item.id}`)
+      if (!res.ok) throw new Error(`Could not load item: ${res.statusText}`)
+      
+      const data = await res.json()
+      if (data.type === 'chat') {
+        setChat(data)
+      } else {
+        setReport(data)
+        setActiveTab('summary')
+      }
+      setStatus('ready')
+      pushFeed('ready', `Restored ${item.type} for "${item.repo_name}" from vault.`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to load archive'
+      setStatus('error')
+      setErrorMessage(msg)
+      pushFeed('error', msg)
+    }
+  }
 
   function pushFeed(s: Status, message: string) {
     setFeed(prev => [
@@ -102,6 +187,7 @@ export default function RoaryDashboard() {
 
     setStatus('ingesting')
     setReport(null)
+    setChat(null)
     setErrorMessage(null)
     setActiveTab('summary')
     pushFeed('ingesting', `Crawling ${url.trim()}`)
@@ -128,10 +214,53 @@ export default function RoaryDashboard() {
       setStatus('ready')
       pushFeed(
         'ready',
-        `"${data.repo_name}" done — ${data.execution_time_seconds.toFixed(1)}s · ${data.token_usage.total_tokens.toLocaleString()} tokens`,
+        `"${data.repo_name}" report done — ${data.execution_time_seconds.toFixed(1)}s`
       )
+      
+      // Refresh history after a successful run
+      fetchHistory()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
+      setStatus('error')
+      setErrorMessage(msg)
+      pushFeed('error', msg)
+    }
+  }
+
+  async function handleChat() {
+    if (!question.trim() || !url.trim() || status === 'ingesting' || status === 'thinking') return
+
+    const currentUrl = url.trim()
+    const currentQuestion = question.trim()
+    
+    setStatus('thinking')
+    setReport(null)
+    setChat(null)
+    setErrorMessage(null)
+    setQuestion('')
+    pushFeed('thinking', `Querying Roary: "${currentQuestion}"`)
+
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${backendUrl}/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ github_url: currentUrl, question: currentQuestion }),
+      })
+
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(`Chat API ${res.status}: ${text}`)
+      }
+
+      const data: ChatResponse = await res.json()
+      setChat(data)
+      setStatus('ready')
+      pushFeed('ready', 'Roary has answered.')
+      
+      fetchHistory()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Chat failed'
       setStatus('error')
       setErrorMessage(msg)
       pushFeed('error', msg)
@@ -183,10 +312,17 @@ export default function RoaryDashboard() {
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--background)' }}>
       {/* Nav */}
       <nav
-        className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0"
+        className="flex items-center justify-between px-4 lg:px-6 py-4 border-b flex-shrink-0 sticky top-0 z-50"
         style={{ borderColor: 'var(--border)', background: 'var(--glass-bg)', backdropFilter: 'blur(12px)' }}
       >
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setShowSidebar(!showSidebar)}
+            className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
+            style={{ color: 'var(--foreground)' }}
+          >
+            <IconMenu />
+          </button>
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm text-white"
             style={{ background: 'var(--neon-blue)', boxShadow: '0 0 12px var(--neon-blue-glow)' }}
@@ -194,12 +330,6 @@ export default function RoaryDashboard() {
             R
           </div>
           <span className="font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>ROARY</span>
-          <span
-            className="text-xs px-2 py-0.5 rounded-full font-medium"
-            style={{ background: 'var(--neon-blue-dim)', color: 'var(--neon-blue)', border: '1px solid var(--glass-border)' }}
-          >
-            v0.4.0
-          </span>
         </div>
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${STATUS_DOT[status]}`} />
@@ -208,91 +338,136 @@ export default function RoaryDashboard() {
       </nav>
 
       {/* Main layout */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Sidebar */}
         <aside
-          className="w-80 flex-shrink-0 flex flex-col border-r overflow-y-auto"
+          className={`
+            fixed inset-y-0 left-0 z-40 w-80 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0
+            flex flex-col border-r overflow-y-auto
+            ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
+          `}
           style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
         >
-          {/* Input card */}
-          <div
-            className="m-4 rounded-2xl p-5"
-            style={{
-              background: 'var(--glass-bg)',
-              border: '1px solid var(--glass-border)',
-              backdropFilter: 'blur(16px)',
-              boxShadow: '0 0 24px var(--neon-blue-glow)',
-            }}
-          >
-            <h1 className="text-base font-bold mb-1" style={{ color: 'var(--foreground)' }}>
-              Repo → Content
-            </h1>
-            <p className="text-xs mb-4" style={{ color: 'var(--foreground-muted)' }}>
-              Paste any public GitHub URL to generate an executive report.
-            </p>
-            <div className="flex flex-col gap-2">
-              <input
-                type="url"
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleGenerate() }}
-                placeholder="https://github.com/owner/repo"
-                disabled={isLoading}
-                className="w-full rounded-lg px-3 py-2 text-sm outline-none transition-all disabled:opacity-50"
-                style={{ background: 'var(--surface-2)', border: '1px solid var(--glass-border)', color: 'var(--foreground)' }}
-                onFocus={e => (e.currentTarget.style.borderColor = 'var(--neon-blue)')}
-                onBlur={e => (e.currentTarget.style.borderColor = 'var(--glass-border)')}
-              />
-              <button
-                onClick={handleGenerate}
-                disabled={isLoading || !url.trim()}
-                className="w-full rounded-lg py-2 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{
-                  background: isLoading ? 'var(--neon-blue-dim)' : 'var(--neon-blue)',
-                  color: isLoading ? 'var(--neon-blue)' : '#fff',
-                  border: '1px solid var(--glass-border)',
-                  boxShadow: isLoading ? 'none' : '0 0 16px var(--neon-blue-glow)',
-                }}
-              >
-                {isLoading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Spinner />
-                    {status === 'ingesting' ? 'Ingesting…' : 'Agents Running…'}
-                  </span>
-                ) : (
-                  'Generate Report'
-                )}
-              </button>
+          {/* Main Actions */}
+          <div className="p-4 flex flex-col gap-4">
+            {/* Report card */}
+            <div
+              className="rounded-2xl p-5"
+              style={{
+                background: 'var(--glass-bg)',
+                border: '1px solid var(--glass-border)',
+                backdropFilter: 'blur(16px)',
+                boxShadow: url ? '0 0 24px var(--neon-blue-glow)' : 'none',
+              }}
+            >
+              <h1 className="text-base font-bold mb-1" style={{ color: 'var(--foreground)' }}>
+                Repo → Content
+              </h1>
+              <p className="text-xs mb-4" style={{ color: 'var(--foreground-muted)' }}>
+                Paste a GitHub URL to generate reports.
+              </p>
+              <div className="flex flex-col gap-2">
+                <input
+                  type="url"
+                  value={url}
+                  onChange={e => setUrl(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleGenerate() }}
+                  placeholder="https://github.com/..."
+                  disabled={isLoading}
+                  className="w-full rounded-lg px-3 py-3 text-sm outline-none transition-all disabled:opacity-50"
+                  style={{ background: 'var(--surface-2)', border: '1px solid var(--glass-border)', color: 'var(--foreground)' }}
+                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--neon-blue)')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'var(--glass-border)')}
+                />
+                <button
+                  onClick={handleGenerate}
+                  disabled={isLoading || !url.trim()}
+                  className="w-full rounded-lg py-3 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]"
+                  style={{
+                    background: isLoading ? 'var(--neon-blue-dim)' : 'var(--neon-blue)',
+                    color: isLoading ? 'var(--neon-blue)' : '#fff',
+                    border: '1px solid var(--glass-border)',
+                    boxShadow: isLoading ? 'none' : '0 0 16px var(--neon-blue-glow)',
+                  }}
+                >
+                  {isLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Spinner />
+                      {status === 'ingesting' ? 'Ingesting…' : 'Thinking…'}
+                    </span>
+                  ) : (
+                    'Generate Report'
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Chat card */}
+            <div
+              className="rounded-2xl p-5"
+              style={{
+                background: 'var(--glass-bg)',
+                border: '1px solid var(--glass-border)',
+                backdropFilter: 'blur(16px)',
+              }}
+            >
+              <h2 className="text-base font-bold mb-1" style={{ color: 'var(--foreground)' }}>
+                Ask Roary (RAG)
+              </h2>
+              <p className="text-xs mb-4" style={{ color: 'var(--foreground-muted)' }}>
+                Query the repo documentation directly.
+              </p>
+              <div className="flex flex-col gap-2">
+                <textarea
+                  value={question}
+                  onChange={e => setQuestion(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChat() } }}
+                  placeholder="What is the architecture?"
+                  disabled={isLoading || !url.trim()}
+                  className="w-full rounded-lg px-3 py-3 text-sm outline-none transition-all disabled:opacity-50 resize-none h-20"
+                  style={{ background: 'var(--surface-2)', border: '1px solid var(--glass-border)', color: 'var(--foreground)' }}
+                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--neon-blue)')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'var(--glass-border)')}
+                />
+                <button
+                  onClick={handleChat}
+                  disabled={isLoading || !url.trim() || !question.trim()}
+                  className="w-full rounded-lg py-2 text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]"
+                  style={{
+                    border: '1px solid var(--neon-blue)',
+                    color: 'var(--neon-blue)',
+                    background: 'transparent'
+                  }}
+                >
+                  {isLoading ? <Spinner /> : 'Ask Question'}
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Download buttons — shown only when ready */}
+          {/* Download buttons — shown only when report ready */}
           {report && status === 'ready' && (
-            <div className="px-4 pb-2 flex flex-col gap-2">
+            <div className="px-4 pb-4 flex flex-col gap-2">
               <button
                 onClick={handleDownloadMd}
-                className="w-full flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-medium transition-all"
+                className="w-full flex items-center justify-center gap-2 rounded-lg py-3 text-xs font-medium transition-all active:bg-[var(--surface-2)]"
                 style={{
                   background: 'var(--surface-2)',
                   border: '1px solid var(--border)',
                   color: 'var(--foreground)',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--neon-blue)')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
               >
                 <IconDownload />
                 Download Report (.md)
               </button>
               <button
                 onClick={handleDownloadZip}
-                className="w-full flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-medium transition-all"
+                className="w-full flex items-center justify-center gap-2 rounded-lg py-3 text-xs font-medium transition-all active:bg-[var(--surface-2)]"
                 style={{
                   background: 'var(--surface-2)',
                   border: '1px solid var(--border)',
                   color: 'var(--foreground)',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--neon-blue)')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
               >
                 <IconArchive />
                 Download Bundle (.zip)
@@ -300,13 +475,46 @@ export default function RoaryDashboard() {
             </div>
           )}
 
-          {/* Process feed */}
+          {/* History Section */}
+          {history.length > 0 && (
+            <div className="px-4 pb-4">
+              <h2
+                className="text-xs font-semibold uppercase tracking-widest mb-3 flex items-center gap-2 px-1"
+                style={{ color: 'var(--foreground-muted)' }}
+              >
+                <IconHistory />
+                Vault Cache
+              </h2>
+              <div className="flex flex-col gap-2">
+                {history.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => loadFromHistory(item)}
+                    className={`w-full text-left rounded-lg p-3 text-xs transition-all group border ${item.type === 'chat' ? 'border-dashed' : 'border-solid'}`}
+                    style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`font-semibold truncate pr-2 group-hover:text-[var(--neon-blue)] ${item.type === 'chat' ? 'text-[var(--neon-blue)]' : ''}`} style={{ color: item.type === 'chat' ? 'var(--neon-blue)' : 'var(--foreground)' }}>
+                        {item.title}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px]" style={{ color: 'var(--foreground-muted)' }}>
+                      <span className="truncate">{item.repo_name}</span>
+                      <span>{new Date(item.generated_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pipeline feed */}
           <div className="flex-1 px-4 pb-4 pt-2">
             <h2
-              className="text-xs font-semibold uppercase tracking-widest mb-2"
+              className="text-xs font-semibold uppercase tracking-widest mb-2 px-1"
               style={{ color: 'var(--foreground-muted)' }}
             >
-              Process Feed
+              Pipeline Log
             </h2>
             <div className="flex flex-col gap-2">
               {feed.map(event => (
@@ -334,11 +542,73 @@ export default function RoaryDashboard() {
           </div>
         </aside>
 
-        {/* Report viewer */}
-        <main className="flex-1 overflow-y-auto p-6">
-          {status === 'idle' && !report && <EmptyState />}
-          {isLoading && <LoadingState status={status} />}
-          {status === 'error' && errorMessage && <ErrorState message={errorMessage} />}
+        {/* Viewport */}
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {status === 'idle' && !errorMessage && !report && !chat && (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+              <div className="w-16 h-16 rounded-2xl mb-6 flex items-center justify-center opacity-20" style={{ background: 'var(--foreground)' }}>
+                <IconGitHub size={32} />
+              </div>
+              <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--foreground)' }}>No content yet</h2>
+              <p className="max-w-xs text-sm" style={{ color: 'var(--foreground-muted)' }}>
+                Enter a GitHub URL and click Generate Report or ask a question to begin analysis.
+              </p>
+            </div>
+          )}
+
+          {(status === 'ingesting' || status === 'thinking') && !report && !chat && (
+            <div className="flex-1 overflow-y-auto p-4 lg:p-8">
+              <LoadingState status={status} />
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="m-6 p-4 rounded-xl border flex items-center gap-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--red)', color: 'var(--red)' }}>
+              <IconAlert />
+              <div className="text-sm font-medium">{errorMessage}</div>
+            </div>
+          )}
+
+          {/* Chat Result */}
+          {chat && status === 'ready' && (
+            <div className="flex-1 overflow-y-auto p-4 lg:p-8">
+              <div className="max-w-3xl mx-auto flex flex-col gap-6">
+                <div className="p-6 rounded-2xl border" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                  <div className="flex items-center gap-2 mb-4 text-[var(--neon-blue)] text-sm font-bold uppercase tracking-wider">
+                    <IconHistory /> Question
+                  </div>
+                  <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--foreground)' }}>{chat.question}</h2>
+                  <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--foreground-muted)' }}>
+                    <span>{chat.repo_name}</span>
+                    <span>•</span>
+                    <span>{new Date(chat.generated_at).toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div className="p-8 rounded-3xl" style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                  <div className="flex items-center gap-2 mb-6 text-[var(--neon-blue)] text-sm font-bold uppercase tracking-wider">
+                    <div className="w-6 h-6 rounded flex items-center justify-center text-white text-[10px]" style={{ background: 'var(--neon-blue)' }}>R</div>
+                    Roary Response
+                  </div>
+                  <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-[var(--black)] prose-pre:border prose-pre:border-[var(--border)]">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{chat.answer}</ReactMarkdown>
+                  </div>
+                  {chat.sources && chat.sources.length > 0 && (
+                    <div className="mt-8 pt-6 border-t flex flex-wrap gap-2" style={{ borderColor: 'var(--border)' }}>
+                      <span className="text-[10px] uppercase font-bold tracking-widest block w-full mb-2" style={{ color: 'var(--foreground-muted)' }}>Sources (README Chunks)</span>
+                      {chat.sources.map((s, i) => (
+                        <span key={i} className="px-2 py-1 rounded text-[10px] font-mono" style={{ background: 'var(--surface-2)', color: 'var(--neon-blue)', border: '1px solid var(--glass-border)' }}>
+                          chunk_{s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Report View */}
           {report && status === 'ready' && (
             <ReportView
               report={report}
@@ -369,40 +639,45 @@ function ReportView({ report, activeTab, onTabChange, getTabContent }: ReportVie
     <div className="max-w-3xl mx-auto">
       {/* Meta bar */}
       <div
-        className="flex flex-wrap items-center gap-3 mb-4 rounded-xl px-4 py-3"
+        className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 rounded-xl px-4 py-3"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       >
-        <span className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>
-          {report.repo_name}
-        </span>
-        <div className="flex-1" />
-        <MetaPill label="Time" value={`${report.execution_time_seconds.toFixed(1)}s`} />
-        <MetaPill label="Tokens" value={report.token_usage.total_tokens.toLocaleString()} />
-        <MetaPill label="Requests" value={String(report.token_usage.successful_requests)} />
-        <MetaPill
-          label="Est. Cost"
-          value={estimateCost(report.token_usage.prompt_tokens, report.token_usage.completion_tokens)}
-          highlight
-        />
-        <span className="text-xs" style={{ color: 'var(--foreground-muted)' }}>
-          {new Date(report.generated_at).toLocaleString()}
-        </span>
+        <div className="w-full sm:w-auto mb-2 sm:mb-0">
+          <span className="font-semibold text-sm block truncate" style={{ color: 'var(--foreground)' }}>
+            {report.repo_name}
+          </span>
+          <span className="text-[10px] sm:text-xs" style={{ color: 'var(--foreground-muted)' }}>
+            {new Date(report.generated_at).toLocaleString()}
+          </span>
+        </div>
+        <div className="hidden sm:block flex-1" />
+        <div className="flex flex-wrap items-center gap-2">
+          <MetaPill label="Time" value={`${report.execution_time_seconds.toFixed(1)}s`} />
+          <MetaPill label="Tokens" value={report.token_usage.total_tokens.toLocaleString()} />
+          <MetaPill label="Reqs" value={String(report.token_usage.successful_requests)} />
+          <MetaPill
+            label="Cost"
+            value={estimateCost(report.token_usage.prompt_tokens, report.token_usage.completion_tokens)}
+            highlight
+          />
+        </div>
       </div>
 
       {/* Tab bar */}
       <div
-        className="flex items-center gap-1 mb-4 rounded-xl p-1"
+        className="flex items-center gap-1 mb-4 rounded-xl p-1 overflow-x-auto no-scrollbar"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       >
         {TABS.map(tab => (
           <button
             key={tab.key}
             onClick={() => onTabChange(tab.key)}
-            className="flex-1 rounded-lg py-2 px-3 text-xs font-medium transition-all"
+            className="flex-1 whitespace-nowrap rounded-lg py-2.5 px-3 text-xs font-medium transition-all active:scale-[0.95]"
             style={{
               background: activeTab === tab.key ? 'var(--neon-blue)' : 'transparent',
               color: activeTab === tab.key ? '#fff' : 'var(--foreground-muted)',
               boxShadow: activeTab === tab.key ? '0 0 12px var(--neon-blue-glow)' : 'none',
+              minWidth: '90px'
             }}
           >
             {tab.label}
@@ -411,8 +686,8 @@ function ReportView({ report, activeTab, onTabChange, getTabContent }: ReportVie
       </div>
 
       {/* Tab description + copy button */}
-      <div className="flex items-center justify-between mb-3 px-1">
-        <span className="text-xs" style={{ color: 'var(--foreground-muted)' }}>
+      <div className="flex items-center justify-between mb-4 px-1 gap-4">
+        <span className="text-xs leading-tight" style={{ color: 'var(--foreground-muted)' }}>
           {TABS.find(t => t.key === activeTab)?.description}
         </span>
         <CopyButton text={content} />
@@ -420,7 +695,7 @@ function ReportView({ report, activeTab, onTabChange, getTabContent }: ReportVie
 
       {/* Markdown body */}
       <div
-        className="markdown-body rounded-2xl p-6"
+        className="markdown-body rounded-2xl p-5 sm:p-6"
         style={{
           background: 'var(--glass-bg)',
           border: '1px solid var(--glass-border)',
@@ -454,7 +729,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+      className="flex items-center gap-1.5 rounded-lg px-3 py-2.5 text-xs font-medium transition-all active:scale-[0.95]"
       style={{
         background: copied ? 'rgba(52,211,153,0.12)' : 'var(--surface-2)',
         border: `1px solid ${copied ? 'rgba(52,211,153,0.4)' : 'var(--border)'}`,
@@ -499,7 +774,7 @@ function estimateCost(promptTokens: number, completionTokens: number): string {
 function MetaPill({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div
-      className="flex items-center gap-1 rounded-md px-2 py-1 text-xs"
+      className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] sm:text-xs"
       style={{
         background: highlight ? 'rgba(52,211,153,0.10)' : 'var(--neon-blue-dim)',
         border: `1px solid ${highlight ? 'rgba(52,211,153,0.3)' : 'var(--glass-border)'}`,
@@ -513,7 +788,7 @@ function MetaPill({ label, value, highlight = false }: { label: string; value: s
 
 function EmptyState() {
   return (
-    <div className="h-full flex flex-col items-center justify-center text-center gap-4 opacity-40">
+    <div className="h-full flex flex-col items-center justify-center text-center gap-4 opacity-40 px-6">
       <svg width="56" height="56" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path
           d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0012 2z"
@@ -578,7 +853,7 @@ function LoadingState({ status }: { status: Status }) {
       </div>
 
       {/* Primary focus: cube + status */}
-      <div className="flex flex-col items-center gap-4 py-6">
+      <div className="flex flex-col items-center gap-4 py-6 px-4">
         <CubeLoader />
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[status]}`} />
@@ -628,23 +903,47 @@ function LoadingState({ status }: { status: Status }) {
 function ErrorState({ message }: { message: string }) {
   return (
     <div
-      className="max-w-xl mx-auto mt-16 rounded-2xl p-6"
+      className="max-w-xl mx-auto mt-8 sm:mt-16 rounded-2xl p-6"
       style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)' }}
     >
       <h3 className="font-semibold text-red-400 mb-2">Generation Failed</h3>
       <p className="text-sm font-mono break-all" style={{ color: 'var(--foreground-muted)' }}>{message}</p>
       <p className="text-xs mt-3" style={{ color: 'var(--foreground-muted)' }}>
-        Make sure the ROARY backend is reachable at{' '}
-        <code className="px-1 py-0.5 rounded" style={{ background: 'var(--surface-2)', color: 'var(--neon-blue)' }}>
-          {process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}
-        </code>{' '}
-        and the URL is a public GitHub repo.
+        Make sure the backend is reachable and the URL is public.
       </p>
     </div>
   )
 }
 
 /* ── Icons ── */
+
+function IconGitHub({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+      <path d="M9 18c-4.51 2-5-2-7-2" />
+    </svg>
+  )
+}
+
+function IconHistory() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 8v4l3 3" />
+      <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5" />
+    </svg>
+  )
+}
+
+function IconMenu() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  )
+}
 
 function IconDownload() {
   return (

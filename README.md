@@ -95,6 +95,7 @@ dashboard — no template, built from scratch:
 |---|---|
 | **Isometric 3D Loader** | Premium **Exploded Isometric Cube** animating during agent execution |
 | **Glassmorphism UI** | Dark charcoal + neon-blue accent, blur backdrop, tailored Tailwind v4 system |
+| **Mobile Responsive** | Fully hardened for mobile/tablet with collapsible drawer nav & adaptive layouts |
 | **Multi-agent tabs** | Summary (Critic) · Lead Engineer · Product Marketer · Ghostwriter |
 | **Skeleton loading UI** | Pulsing secondary elements to maintain focus on the 3D isometric masterpiece |
 | **Mandatory URL Trace** | Automatic injection of source repository URL at the bottom of every story |

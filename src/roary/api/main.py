@@ -171,6 +171,202 @@ async def heartbeat() -> dict[str, Any]:
     }
 
 
+@app.get(
+    "/history",
+    response_model=list[dict[str, Any]],
+    summary="List all generated items (reports and chats) from local history",
+    tags=["newsroom"],
+)
+async def list_history() -> list[dict[str, Any]]:
+    """Return a unified list of metadata for all reports and chats."""
+    if _ON_VERCEL:
+        return []
+    
+    items = []
+    
+    # Check reports
+    history_dir = Path("data/history")
+    if history_dir.exists():
+        for path in history_dir.glob("*.json"):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    items.append({
+                        "id": path.name,
+                        "type": "report",
+                        "repo_name": data.get("repo_name"),
+                        "title": f"Report: {data.get('repo_name')}",
+                        "github_url": data.get("github_url"),
+                        "generated_at": data.get("generated_at"),
+                        "mtime": os.path.getmtime(path)
+                    })
+            except Exception:
+                continue
+
+    # Check chats
+    chat_dir = Path("data/chats")
+    if chat_dir.exists():
+        for path in chat_dir.glob("*.json"):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    items.append({
+                        "id": path.name,
+                        "type": "chat",
+                        "repo_name": data.get("repo_name"),
+                        "title": f"Q: {data.get('question')[:30]}...",
+                        "github_url": data.get("github_url"),
+                        "generated_at": data.get("generated_at"),
+                        "mtime": os.path.getmtime(path)
+                    })
+            except Exception:
+                continue
+    
+    # Sort by mtime (most recent first)
+    items.sort(key=lambda x: x["mtime"], reverse=True)
+    return items
+
+
+@app.get(
+    "/history/{filename}",
+    response_model=dict[str, Any],
+    summary="Get a specific item from history",
+    tags=["newsroom"],
+)
+async def get_history_detail(filename: str) -> dict[str, Any]:
+    """Return the full detail for a specific JSON file in history."""
+    if _ON_VERCEL:
+        raise HTTPException(status_code=404, detail="History not available on Vercel")
+        
+    # Check multiple locations
+    paths = [Path("data/history") / filename, Path("data/chats") / filename]
+    history_path = next((p for p in paths if p.exists()), None)
+    
+    if not history_path:
+        raise HTTPException(status_code=404, detail="Item not found")
+        
+    try:
+        with open(history_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            # Add type if missing
+            if "type" not in data:
+                data["type"] = "report" if "data/history" in str(history_path) else "chat"
+            return data
+    except Exception as exc:
+        logger.exception("Failed to read history file %s", filename)
+        raise HTTPException(status_code=500, detail=f"Read failure: {exc}")
+
+
+class QueryRequest(BaseModel):
+    """Input payload for ``POST /query``."""
+
+    github_url: str = Field(..., description="The repository to query against.")
+    question: str = Field(..., description="The user's question.")
+
+
+class QueryResponse(BaseModel):
+    """Output payload for ``POST /query``."""
+
+    repo_name: str
+    question: str
+    answer: str
+    sources: list[str]
+    generated_at: str
+
+
+@app.post(
+    "/query",
+    response_model=QueryResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Ask a question about the repository using RAG",
+    tags=["chat"],
+)
+def query_repo(request: QueryRequest) -> dict[str, Any]:
+    """Search the repository README using RAG and answer the user's question."""
+    from roary.rag.ingester import build_embeddings, ingest_readme, query_readme
+    from langchain_anthropic import ChatAnthropic
+    from langchain_core.prompts import ChatPromptTemplate
+    
+    # ── 1. Fetch/Crawl ──────────────────────────────────────────────────────
+    try:
+        summary = fetch_repo_summary(request.github_url)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    repo = RepoData(
+        repo_name=summary.full_name,
+        github_url=summary.url,
+        description=summary.description,
+        readme=summary.readme_content,
+    )
+
+    # ── 2. Vector Search ────────────────────────────────────────────────────
+    try:
+        embeddings = build_embeddings()
+        ingest_readme(repo, embeddings=embeddings)
+        hits = query_readme(request.question, repo.repo_name, embeddings=embeddings)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"RAG Error: {exc}")
+
+    if not hits:
+        answer = "I couldn't find any relevant information in the README to answer that question."
+        sources = []
+    else:
+        # ── 3. LLM Synthesis ────────────────────────────────────────────────
+        context = "\n\n".join([doc.page_content for doc in hits])
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are Roary, a helpful AI lead engineer. Answer the user's question using ONLY the provided README context. If the answer isn't in the context, say so. Be direct and technical."),
+            ("user", "Context from {repo_name} README:\n{context}\n\nQuestion: {question}")
+        ])
+        
+        # We'll use Haiku for quick, cheap chat responses
+        llm = ChatAnthropic(model="claude-3-5-haiku-20241022")
+        chain = prompt | llm
+        
+        try:
+            ai_msg = chain.invoke({
+                "repo_name": repo.repo_name,
+                "context": context,
+                "question": request.question
+            })
+            answer = str(ai_msg.content)
+            sources = [doc.metadata.get("chunk_index", "v") for doc in hits]
+        except Exception as exc:
+            logger.error("LLM Chat failed: %s", exc)
+            answer = f"I found some relevant parts of the README, but I couldn't generate a summary. Error: {exc}"
+            sources = []
+
+    generated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    # ── 4. Persist Chat History ─────────────────────────────────────────────
+    if not _ON_VERCEL:
+        chat_dir = Path("data/chats")
+        chat_dir.mkdir(parents=True, exist_ok=True)
+        # Using a similar naming convention to reports
+        chat_stem = re.sub(r"[^a-zA-Z0-9_-]", "_", repo.repo_name)
+        chat_ts = generated_at.replace(":", "").replace("-", "")
+        chat_path = chat_dir / f"chat_{chat_stem}_{chat_ts}.json"
+        
+        chat_payload = {
+            "type": "chat",
+            "repo_name": repo.repo_name,
+            "github_url": request.github_url,
+            "question": request.question,
+            "answer": answer,
+            "sources": sources,
+            "generated_at": generated_at
+        }
+        chat_path.write_text(json.dumps(chat_payload, indent=2), encoding="utf-8")
+
+    return {
+        "repo_name": repo.repo_name,
+        "question": request.question,
+        "answer": answer,
+        "sources": sources,
+        "generated_at": generated_at
+    }
+
+
 @app.post(
     "/generate-report",
     response_model=ReportResponse,

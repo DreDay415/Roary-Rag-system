@@ -1,0 +1,9 @@
+{
+  "type": "chat",
+  "repo_name": "octocat/Spoon-Knife",
+  "github_url": "https://github.com/octocat/Spoon-Knife",
+  "question": "What is Spoon-Knife used for?",
+  "answer": "I found some relevant parts of the README, but I couldn't generate a summary. Error: \"Could not resolve authentication method. Expected either api_key or auth_token to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\"",
+  "sources": [],
+  "generated_at": "2026-04-14T18:48:28Z"
+}

@@ -221,3 +221,30 @@ body {
   0%, 100% { transform: translateZ(0.5em) scaleZ(-1); }
   50%       { transform: translateZ(0.8333em) scaleZ(-1); }
 }
+
+/* ── Utilities ────────────────────────────────────────────────────────── */
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Improved focus for touch */
+button:focus-visible, 
+input:focus-visible {
+  outline: 2px solid var(--neon-blue);
+  outline-offset: 2px;
+}
+
+/* Prevent zoom on focus for iOS */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="url"],
+  input[type="number"],
+  textarea {
+    font-size: 16px !important;
+  }
+}
